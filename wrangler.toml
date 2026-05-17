@@ -1,0 +1,9 @@
+name = "stripe-cpm-kinesis-adapter"
+main = "apps/adapter/src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "stripe-cpm-kinesis-adapter"
+# database_id = "REPLACE_ME"
