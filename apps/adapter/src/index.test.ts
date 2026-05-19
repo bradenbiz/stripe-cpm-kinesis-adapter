@@ -6,6 +6,9 @@ const env: Env = {
   STRIPE_SECRET_KEY: 'sk_test_dummy',
   STRIPE_WEBHOOK_SECRET: 'whsec_dummy',
   KINESIS_WEBHOOK_SECRET: 'kinesis_dummy',
+  KINESIS_PUBLIC_KEY: 'kp_pub_dummy',
+  KINESIS_SECRET_KEY: 'kp_secret_dummy',
+  KINESIS_MERCHANT_ID: 'mer_dummy',
 };
 
 describe('adapter router', () => {

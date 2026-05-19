@@ -1,4 +1,8 @@
 import type { Env } from './env.js';
+// Side-effect import to force the Workers bundler to resolve & bundle the
+// Kinesis Pay SDK. Surfaces any Node-only imports or ESM/CJS issues at
+// build time, before any route depends on the SDK.
+import './lib/kinesis-pay.smoke.js';
 import { text } from './lib/response.js';
 import { handleHealth } from './routes/health.js';
 import { handlePay } from './routes/pay.js';

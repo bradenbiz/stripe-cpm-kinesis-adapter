@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "kinesis-exchange-sdk": "*",
     "stripe": "^17.7.0"
   },
   "devDependencies": {
