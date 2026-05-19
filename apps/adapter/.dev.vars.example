@@ -1,0 +1,23 @@
+# Cloudflare Workers local-development secrets, loaded by `wrangler dev`.
+# Copy this file to `.dev.vars` (gitignored) and fill in values.
+#
+# Production secrets are set with `wrangler secret put <NAME>` instead —
+# never put production secrets in this file.
+
+# Stripe — get from https://dashboard.stripe.com/test/apikeys
+STRIPE_SECRET_KEY=sk_test_replace_me
+
+# Stripe webhook secret — printed by `stripe listen` (Stripe CLI)
+STRIPE_WEBHOOK_SECRET=whsec_replace_me
+
+# Dev-only Kinesis webhook simulator secret — any string is fine; it's
+# only used by the dev-only /webhook/kinesis route (real Kinesis Pay
+# does not send webhooks).
+KINESIS_WEBHOOK_SECRET=dev_simulator_any_string
+
+# Kinesis Pay merchant API credentials.
+# Source: KMS → Settings → API Keys → Merchant section.
+# Use non-production credentials when available.
+KINESIS_PUBLIC_KEY=replace_me
+KINESIS_SECRET_KEY=replace_me
+KINESIS_MERCHANT_ID=replace_me
