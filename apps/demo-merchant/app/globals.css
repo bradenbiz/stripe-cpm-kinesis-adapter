@@ -1,0 +1,106 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #fafaf9;
+  color: #18181b;
+}
+
+a {
+  color: #c2410c;
+}
+
+.container {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.muted {
+  color: #71717a;
+  font-size: 0.875rem;
+}
+
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.product-card {
+  border: 1px solid #e4e4e7;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.product-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.product-card .price {
+  font-weight: 600;
+  font-size: 1.25rem;
+  color: #18181b;
+}
+
+.product-card p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #52525b;
+  flex: 1;
+}
+
+.btn {
+  display: inline-block;
+  background: #18181b;
+  color: #ffffff;
+  text-decoration: none;
+  padding: 0.625rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:hover:not(:disabled) {
+  background: #27272a;
+}
+
+.checkout-summary {
+  border: 1px solid #e4e4e7;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 0.875rem;
+  margin-top: 0.75rem;
+}
+
+.success-banner {
+  background: #ecfccb;
+  border: 1px solid #84cc16;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}

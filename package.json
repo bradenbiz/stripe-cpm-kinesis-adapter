@@ -4,20 +4,22 @@
   "description": "Stripe Custom Payment Method adapter for Kinesis Pay.",
   "private": true,
   "type": "module",
+  "workspaces": ["apps/*"],
   "scripts": {
-    "build": "wrangler deploy --dry-run --outdir=dist",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "test": "vitest run --passWithNoTests",
+    "build": "npm run build --workspaces --if-present",
+    "dev:adapter": "npm run dev --workspace=apps/adapter",
+    "dev:merchant": "npm run dev --workspace=apps/demo-merchant",
+    "test": "npm test --workspaces --if-present",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
-    "@cloudflare/workers-types": "^4.20240925.0",
-    "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "wrangler": "^3.78.0"
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

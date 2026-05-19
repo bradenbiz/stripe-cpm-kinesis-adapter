@@ -1,7 +1,12 @@
 name = "stripe-cpm-kinesis-adapter"
-main = "apps/adapter/src/index.ts"
+main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
+
+# Secrets (set via `wrangler secret put <NAME>`):
+#   STRIPE_SECRET_KEY
+#   STRIPE_WEBHOOK_SECRET
+#   KINESIS_WEBHOOK_SECRET
 
 # [[d1_databases]]
 # binding = "DB"
