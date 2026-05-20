@@ -10,6 +10,7 @@ interface Props {
   paymentIntentId: string;
   adapterBaseUrl: string;
   cpmEnabled: boolean;
+  cpmtId?: string;
 }
 
 export default function CheckoutForm(props: Props) {
@@ -20,18 +21,39 @@ export default function CheckoutForm(props: Props) {
     [props.publishableKey],
   );
 
+  // Custom payment methods are wired client-side via the Elements
+  // `customPaymentMethods` option — NOT server-side via PaymentIntent's
+  // `payment_method_types`.
+  const elementsOptions: Parameters<typeof Elements>[0]['options'] = {
+    clientSecret: props.clientSecret,
+    ...(props.cpmtId
+      ? {
+          customPaymentMethods: [
+            {
+              id: props.cpmtId,
+              options: { type: 'static' as const },
+            },
+          ],
+        }
+      : {}),
+  };
+
   return (
-    <Elements stripe={stripePromise} options={{ clientSecret: props.clientSecret }}>
+    <Elements stripe={stripePromise} options={elementsOptions}>
       <InnerForm {...props} />
     </Elements>
   );
 }
 
-function InnerForm({ paymentIntentId, adapterBaseUrl, cpmEnabled }: Props) {
+function InnerForm({ paymentIntentId, adapterBaseUrl, cpmtId }: Props) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tracks the user's currently-selected payment method type. For CPMs
+  // this is the cpmt_* id; for Stripe-processed methods it's 'card',
+  // 'klarna', etc.
+  const [selectedType, setSelectedType] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,25 +64,26 @@ function InnerForm({ paymentIntentId, adapterBaseUrl, cpmEnabled }: Props) {
 
     const origin = window.location.origin;
     const merchantSuccessUrl = `${origin}/success`;
+    const isCustomPaymentMethod = cpmtId && selectedType === cpmtId;
 
-    // Strategy: ALWAYS return to the adapter when CPM is enabled.
-    //   - For Card: adapter sees PI status `succeeded` → bounces to merchant /success
-    //   - For CPM:  adapter sees PI requires_action → runs the QR flow, then
-    //     redirects to merchant /success on `processed`
-    // This sidesteps the "we don't know which method was selected at submit
-    // time" problem — one return URL, adapter routes based on PI state.
-    const returnUrl = cpmEnabled
-      ? `${adapterBaseUrl}/pay/${encodeURIComponent(paymentIntentId)}` +
-        `?merchant_return_url=${encodeURIComponent(merchantSuccessUrl)}`
-      : merchantSuccessUrl;
+    if (isCustomPaymentMethod) {
+      // CPM path: Stripe does NOT process this. We must redirect the
+      // customer to our adapter ourselves. The PaymentIntent stays in
+      // `requires_payment_method` until the adapter reports the off-
+      // Stripe payment via `paymentRecords.reportPayment`.
+      const adapterReturnUrl =
+        `${adapterBaseUrl}/pay/${encodeURIComponent(paymentIntentId)}` +
+        `?merchant_return_url=${encodeURIComponent(merchantSuccessUrl)}`;
+      window.location.href = adapterReturnUrl;
+      return;
+    }
 
+    // Standard Stripe flow (Card, Klarna, Bank, etc.)
     const { error: confirmError } = await stripe.confirmPayment({
       elements,
-      confirmParams: { return_url: returnUrl },
+      confirmParams: { return_url: merchantSuccessUrl },
     });
 
-    // If we reach this point, confirmation failed. (On success Stripe
-    // redirects to `return_url` and this code does not run.)
     if (confirmError) {
       setError(confirmError.message ?? 'Payment failed.');
     }
@@ -69,7 +92,13 @@ function InnerForm({ paymentIntentId, adapterBaseUrl, cpmEnabled }: Props) {
 
   return (
     <form onSubmit={onSubmit}>
-      <PaymentElement />
+      <PaymentElement
+        onChange={(event) => {
+          // event.value.type is the currently-selected method's type id.
+          // For a CPM it's the cpmt_* string; for cards it's 'card'.
+          setSelectedType(event.value.type ?? null);
+        }}
+      />
       <button
         type="submit"
         className="btn"

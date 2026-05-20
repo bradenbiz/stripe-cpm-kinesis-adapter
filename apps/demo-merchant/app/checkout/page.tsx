@@ -16,17 +16,18 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
   const product = findProduct(productId);
   if (!product) notFound();
 
-  // Card is always available. The CPM type id is optional — if set, the
-  // Payment Element renders "Pay with Gold" as a second option.
+  // CPM type id is optional. NOTE: CPMs are NOT listed in
+  // `payment_method_types` on the PaymentIntent — that's a Stripe API
+  // misconception (they error with "type … is invalid"). CPMs are
+  // declared on the CLIENT side via `stripe.elements({ customPaymentMethods })`.
+  // Server-side, the PaymentIntent looks like a normal card-only intent.
   const cpmtId = process.env.KINESIS_CPMT_ID?.trim();
-  const paymentMethodTypes: string[] = ['card'];
-  if (cpmtId) paymentMethodTypes.push(cpmtId);
 
   const stripe = getStripe();
   const intent = await stripe.paymentIntents.create({
     amount: product.priceCents,
     currency: 'usd',
-    payment_method_types: paymentMethodTypes,
+    payment_method_types: ['card'],
     description: product.name,
     metadata: { product_id: product.id },
   });
@@ -62,6 +63,7 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
         paymentIntentId={intent.id}
         adapterBaseUrl={adapterBaseUrl}
         cpmEnabled={Boolean(cpmtId)}
+        cpmtId={cpmtId}
       />
 
       <p className="muted" style={{ marginTop: '2rem' }}>

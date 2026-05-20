@@ -1,14 +1,6 @@
 import Stripe from 'stripe';
 
 /**
- * The Stripe API version pinned for this adapter.
- *
- * The CPM (Custom Payment Method) feature requires `2025-03-31.basil` or later.
- * See: https://docs.stripe.com/upgrades#2025-03-31.basil
- */
-export const STRIPE_API_VERSION = '2025-03-31.basil' as const;
-
-/**
  * Construct a Stripe client suitable for the Cloudflare Workers runtime.
  *
  * Notes:
@@ -17,12 +9,14 @@ export const STRIPE_API_VERSION = '2025-03-31.basil' as const;
  *  - Webhook signature verification must use `constructEventAsync` paired
  *    with `createSubtleCryptoProvider` (see `verifyStripeWebhook` below).
  *    The synchronous variants rely on Node `crypto`.
+ *  - We don't pin `apiVersion` — the SDK uses its built-in latest, which is
+ *    deterministic per SDK version (pinned in package.json + lockfile).
+ *    Tried explicit pinning previously but the SDK's apiVersion union is a
+ *    strict literal type that rejects values outside `LatestApiVersion`,
+ *    making cross-SDK-version compatibility fragile.
  */
 export function makeStripe(secretKey: string): Stripe {
   return new Stripe(secretKey, {
-    // The Stripe Node SDK ships typed API version strings; cast lets us pin
-    // to a value the SDK may not yet recognise in its own union type.
-    apiVersion: STRIPE_API_VERSION as Stripe.StripeConfig['apiVersion'],
     httpClient: Stripe.createFetchHttpClient(),
   });
 }

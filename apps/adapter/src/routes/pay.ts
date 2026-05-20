@@ -224,6 +224,7 @@ function renderPayPage(args: RenderArgs): string {
       (function () {
         var REDIRECT_URL = ${JSON.stringify(redirectUrl)};
         var KP_ID = ${JSON.stringify(kinesisPaymentId)};
+        var PI_ID = ${JSON.stringify(paymentIntentId)};
         var SUCCESS_REDIRECT = ${JSON.stringify(successRedirect)};
 
         new QRCode(document.getElementById('qrcode'), {
@@ -249,7 +250,9 @@ function renderPayPage(args: RenderArgs): string {
         }
 
         function poll() {
-          fetch('/pay-status/' + encodeURIComponent(KP_ID))
+          // ?pi=… tells the status endpoint which Stripe PaymentIntent to
+          // close out when the Kinesis payment reaches a terminal state.
+          fetch('/pay-status/' + encodeURIComponent(KP_ID) + '?pi=' + encodeURIComponent(PI_ID))
             .then(function (r) { return r.json(); })
             .then(function (data) {
               if (data.status) setStatus(data.status);

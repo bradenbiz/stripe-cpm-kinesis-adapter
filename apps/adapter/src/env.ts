@@ -13,5 +13,12 @@ export interface Env {
   KINESIS_PUBLIC_KEY: string;
   KINESIS_SECRET_KEY: string;
   KINESIS_MERCHANT_ID: string;
+  /**
+   * The Stripe Custom Payment Method type id (cpmt_…) associated with
+   * Kinesis Pay. Used when reporting payments back to Stripe via
+   * stripe.paymentRecords.reportPayment. Must match the demo merchant's
+   * KINESIS_CPMT_ID — same Stripe account, same cpmt.
+   */
+  KINESIS_CPMT_ID: string;
   // DB: D1Database; // uncomment once D1 binding is provisioned
 }

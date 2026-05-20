@@ -21,3 +21,8 @@ KINESIS_WEBHOOK_SECRET=dev_simulator_any_string
 KINESIS_PUBLIC_KEY=replace_me
 KINESIS_SECRET_KEY=replace_me
 KINESIS_MERCHANT_ID=replace_me
+
+# Stripe Custom Payment Method type id for Kinesis Pay. Must match the
+# demo merchant's KINESIS_CPMT_ID (same Stripe account, same cpmt).
+# Used by the adapter when reporting captured payments back to Stripe.
+KINESIS_CPMT_ID=cpmt_replace_me

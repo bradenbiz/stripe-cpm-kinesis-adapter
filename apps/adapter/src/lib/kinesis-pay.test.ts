@@ -9,6 +9,7 @@ const env: Env = {
   KINESIS_PUBLIC_KEY: 'kp_pub_dummy',
   KINESIS_SECRET_KEY: 'kp_secret_dummy',
   KINESIS_MERCHANT_ID: 'mer_dummy',
+  KINESIS_CPMT_ID: 'cpmt_dummy',
 };
 
 describe('makeKinesisPay confirm guard', () => {
