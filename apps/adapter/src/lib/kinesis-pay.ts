@@ -16,18 +16,30 @@ export interface MakeKinesisPayOptions {
   /**
    * Allow `confirmPayment` to be called. Default `false`.
    *
-   * `confirmPayment` is the only Kinesis Pay endpoint that captures
-   * funds. With this flag off, calling it throws — even if a real
-   * payment has been accepted by a customer. This is a belt-and-
-   * suspenders guard on top of "don't write code that calls confirm
-   * in dev." Set to `true` only when:
-   *   - targeting QA credentials (no real funds at stake), OR
-   *   - intentionally executing a real production capture as part of
-   *     end-to-end testing with awareness of the financial impact.
+   * `confirmPayment` does not move funds (funds move on customer approval
+   * in the Kinesis app — that's what transitions the status to `processed`).
+   * What it DOES is attach a merchant-internal `orderId` to the Kinesis
+   * payment record for reconciliation. The orderId persists on the Kinesis
+   * side and shows up in subsequent `getPaymentStatus` responses.
+   *
+   * Why the guard, then? Two reasons:
+   *
+   *   1. external test runs would otherwise tag
+   *      payment records with throwaway test orderIds, polluting
+   *      the merchant's reconciliation state.
+   *   2. confirmPayment is the "merchant-finalizes" call — semantically,
+   *      after confirm runs the payment is considered fully reconciled
+   *      from the merchant's side. Doing that in dev would prematurely
+   *      mark a real payment as processed for a fake order.
+   *
+   * Set to `true` only when:
+   *   - targeting QA credentials (no merchant state changes), OR
+   *   - intentionally finalizing a merchant order, with a real
+   *     merchant-side order identifier.
    *
    * Auditable: any commit that flips this to `true` is grep-able.
    */
-  allowCapture?: boolean;
+  allowProcess?: boolean;
 }
 
 /**
@@ -38,7 +50,7 @@ export interface MakeKinesisPayOptions {
  */
 export function makeKinesisPay(env: Env, opts: MakeKinesisPayOptions = {}): KinesisPayClient {
   const targetEnv = opts.env ?? 'production';
-  const allowCapture = opts.allowCapture === true;
+  const allowProcess = opts.allowProcess === true;
 
   const client = new KinesisPayClient({
     publicKey: env.KINESIS_PUBLIC_KEY,
@@ -48,7 +60,7 @@ export function makeKinesisPay(env: Env, opts: MakeKinesisPayOptions = {}): Kine
     kmsBaseUrl: targetEnv === 'qa' ? KINESIS_PAY_QA_KMS_BASE_URL : KINESIS_PAY_PROD_KMS_BASE_URL,
   });
 
-  if (allowCapture) return client;
+  if (allowProcess) return client;
 
   // Replace confirmPayment with a guard. Using defineProperty with
   // writable: false / configurable: false so the override can't be
@@ -59,8 +71,9 @@ export function makeKinesisPay(env: Env, opts: MakeKinesisPayOptions = {}): Kine
     value: () =>
       Promise.reject(
         new Error(
-          'KinesisPayClient.confirmPayment is disabled — capture would move real funds. ' +
-            'To enable: pass `{ allowCapture: true }` to makeKinesisPay(). ' +
+          'KinesisPayClient.confirmPayment is disabled — would write a merchant-side ' +
+            'orderId to a real Kinesis payment record. ' +
+            'To enable: pass `{ allowProcess: true }` to makeKinesisPay(). ' +
             'See apps/adapter/src/lib/kinesis-pay.ts for guidance on when that is safe.',
         ),
       ),
