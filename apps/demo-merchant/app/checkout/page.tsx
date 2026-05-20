@@ -16,11 +16,17 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
   const product = findProduct(productId);
   if (!product) notFound();
 
+  // Card is always available. The CPM type id is optional — if set, the
+  // Payment Element renders "Pay with Gold" as a second option.
+  const cpmtId = process.env.KINESIS_CPMT_ID?.trim();
+  const paymentMethodTypes: string[] = ['card'];
+  if (cpmtId) paymentMethodTypes.push(cpmtId);
+
   const stripe = getStripe();
   const intent = await stripe.paymentIntents.create({
     amount: product.priceCents,
     currency: 'usd',
-    payment_method_types: ['card'],
+    payment_method_types: paymentMethodTypes,
     description: product.name,
     metadata: { product_id: product.id },
   });
@@ -33,6 +39,9 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
   if (!publishableKey) {
     throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set.');
   }
+
+  const adapterBaseUrl =
+    process.env.NEXT_PUBLIC_ADAPTER_BASE_URL?.trim() || 'http://localhost:8787';
 
   return (
     <main className="container">
@@ -47,7 +56,13 @@ export default async function CheckoutPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <CheckoutForm clientSecret={intent.client_secret} publishableKey={publishableKey} />
+      <CheckoutForm
+        clientSecret={intent.client_secret}
+        publishableKey={publishableKey}
+        paymentIntentId={intent.id}
+        adapterBaseUrl={adapterBaseUrl}
+        cpmEnabled={Boolean(cpmtId)}
+      />
 
       <p className="muted" style={{ marginTop: '2rem' }}>
         Test card: <code>4242 4242 4242 4242</code>, any future expiry, any CVC, any zip.

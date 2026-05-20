@@ -1,21 +1,23 @@
 import type { Env } from '../env.js';
 import { makeKinesisPay } from '../lib/kinesis-pay.js';
 import { html } from '../lib/response.js';
+import { makeStripe } from '../lib/stripe.js';
 
 /**
- * GET /pay/:payment_intent_id
+ * GET /pay/:payment_intent_id?merchant_return_url=…
  *
- * Creates a Kinesis Pay payment for the requested amount and renders
- * a page with a scannable QR code. The page polls /pay-status/:kpId
- * every 10s and updates the UI as the customer approves the payment in
- * their Kinesis app.
+ * Stripe's CheckoutForm sets this URL as the `return_url` on
+ * `confirmPayment`. When the customer picks:
  *
- * For now the amount comes from query params (`?amount=5.00&currency=USD`).
- * In the real Stripe integration this route will look up the Stripe
- * PaymentIntent server-side to get amount and currency.
- *
- * `paymentIntentId` is used only as a correlation tag on the page — it
- * isn't sent to Kinesis yet.
+ *   - Card  → Stripe processes inline, PI status reaches `succeeded`
+ *             BEFORE this redirect fires. We just bounce back to the
+ *             merchant's success URL.
+ *   - CPM   → Stripe redirects here with PI in `requires_action` /
+ *             `requires_payment_method`. We create a Kinesis Pay payment
+ *             using the PI's real amount + currency, render the QR page,
+ *             and let the page poll until `processed`. On `processed`,
+ *             the page-side JS redirects the customer to the merchant
+ *             success URL.
  */
 export async function handlePay(
   request: Request,
@@ -23,12 +25,48 @@ export async function handlePay(
   env: Env,
 ): Promise<Response> {
   const url = new URL(request.url);
-  const amountStr = url.searchParams.get('amount') ?? '5.00';
-  const currency = (url.searchParams.get('currency') ?? 'USD').toUpperCase();
+  const merchantReturnUrl = url.searchParams.get('merchant_return_url') ?? '';
 
-  const amount = Number(amountStr);
+  const stripe = makeStripe(env.STRIPE_SECRET_KEY);
+
+  let intent: Awaited<ReturnType<typeof stripe.paymentIntents.retrieve>>;
+  try {
+    intent = await stripe.paymentIntents.retrieve(paymentIntentId);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[pay] could not retrieve PaymentIntent', { paymentIntentId, message });
+    return html(renderErrorPage(`Could not look up Stripe PaymentIntent: ${escapeHtml(message)}`), {
+      status: 400,
+    });
+  }
+
+  // Card path — Stripe already settled. Bounce to merchant.
+  if (intent.status === 'succeeded') {
+    if (!merchantReturnUrl) {
+      return html(renderInfoPage('Payment succeeded.', `PaymentIntent ${intent.id}`));
+    }
+    return Response.redirect(appendPiToUrl(merchantReturnUrl, intent.id), 303);
+  }
+
+  // CPM path — only states where a customer-driven action still needs to
+  // happen are meaningful here.
+  const cpmExpectedStates = new Set([
+    'requires_action',
+    'requires_payment_method',
+    'requires_confirmation',
+  ]);
+  if (!cpmExpectedStates.has(intent.status)) {
+    return html(renderErrorPage(`Unexpected PaymentIntent status: ${escapeHtml(intent.status)}`), {
+      status: 400,
+    });
+  }
+
+  // Stripe stores amounts in the smallest currency unit (cents). Kinesis
+  // takes a decimal in the target currency.
+  const amount = (intent.amount ?? 0) / 100;
+  const currency = (intent.currency ?? 'usd').toUpperCase();
   if (!Number.isFinite(amount) || amount <= 0) {
-    return html(renderErrorPage(`Invalid amount: ${amountStr}`), { status: 400 });
+    return html(renderErrorPage(`Invalid PaymentIntent amount: ${intent.amount}`), { status: 400 });
   }
 
   const kpay = makeKinesisPay(env);
@@ -44,9 +82,17 @@ export async function handlePay(
       kinesisPaymentId,
       amount,
       currency,
+      merchantReturnUrl,
     });
     return html(
-      renderPayPage({ paymentIntentId, kinesisPaymentId, redirectUrl, amount, currency }),
+      renderPayPage({
+        paymentIntentId,
+        kinesisPaymentId,
+        redirectUrl,
+        amount,
+        currency,
+        merchantReturnUrl,
+      }),
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -57,16 +103,33 @@ export async function handlePay(
   }
 }
 
+function appendPiToUrl(baseUrl: string, paymentIntentId: string): string {
+  // Mirror Stripe's own convention: stripe appends `payment_intent=` on
+  // its post-3DS return URLs, so the merchant /success page sees the same
+  // query param it would for a normal card success.
+  const u = new URL(baseUrl);
+  u.searchParams.set('payment_intent', paymentIntentId);
+  return u.toString();
+}
+
 interface RenderArgs {
   paymentIntentId: string;
   kinesisPaymentId: string;
   redirectUrl: string;
   amount: number;
   currency: string;
+  merchantReturnUrl: string;
 }
 
 function renderPayPage(args: RenderArgs): string {
-  const { paymentIntentId, kinesisPaymentId, redirectUrl, amount, currency } = args;
+  const { paymentIntentId, kinesisPaymentId, redirectUrl, amount, currency, merchantReturnUrl } =
+    args;
+  // The page redirects to the merchant on `processed`. Pass the URL
+  // through verbatim — empty string disables auto-redirect (useful for
+  // manual testing without a merchant in the loop).
+  const successRedirect = merchantReturnUrl
+    ? appendPiToUrl(merchantReturnUrl, paymentIntentId)
+    : '';
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -96,11 +159,7 @@ function renderPayPage(args: RenderArgs): string {
         background: var(--bg);
         color: var(--fg);
       }
-      .container {
-        max-width: 28rem;
-        margin: 3rem auto;
-        padding: 0 1.5rem;
-      }
+      .container { max-width: 28rem; margin: 3rem auto; padding: 0 1.5rem; }
       .card {
         background: var(--card);
         border: 1px solid var(--border);
@@ -108,11 +167,7 @@ function renderPayPage(args: RenderArgs): string {
         padding: 1.5rem;
       }
       h1 { margin: 0 0 1rem; font-size: 1.25rem; }
-      .amount {
-        font-size: 2rem;
-        font-weight: 600;
-        margin: 0.5rem 0 1rem;
-      }
+      .amount { font-size: 2rem; font-weight: 600; margin: 0.5rem 0 1rem; }
       .muted { color: var(--muted); font-size: 0.875rem; }
       code {
         background: #f4f4f5;
@@ -169,10 +224,8 @@ function renderPayPage(args: RenderArgs): string {
       (function () {
         var REDIRECT_URL = ${JSON.stringify(redirectUrl)};
         var KP_ID = ${JSON.stringify(kinesisPaymentId)};
+        var SUCCESS_REDIRECT = ${JSON.stringify(successRedirect)};
 
-        // Render the QR. The data is the kms.kinesis.money URL the SDK
-        // gave us — Kinesis app opens it via deep link, web users land
-        // on the KMS approve page.
         new QRCode(document.getElementById('qrcode'), {
           text: REDIRECT_URL,
           width: 200,
@@ -183,8 +236,8 @@ function renderPayPage(args: RenderArgs): string {
         var statusEl = document.getElementById('status');
         var statusMessages = {
           created:   '⏳ Waiting for you to scan and approve…',
-          accepted:  '✓ Approved in your Kinesis app — awaiting merchant capture…',
-          processed: '✓ Payment complete. Funds captured.',
+          accepted:  '✓ Approved in your Kinesis app — finalizing…',
+          processed: '✓ Payment complete. Redirecting…',
           rejected:  '✕ You declined the payment in your Kinesis app.',
           expired:   '✕ The payment expired before approval. Refresh to try again.',
         };
@@ -200,11 +253,15 @@ function renderPayPage(args: RenderArgs): string {
             .then(function (r) { return r.json(); })
             .then(function (data) {
               if (data.status) setStatus(data.status);
-              if (!TERMINAL[data.status]) setTimeout(poll, 10000);
+              if (data.status === 'processed' && SUCCESS_REDIRECT) {
+                // Brief delay so the user sees the "complete" message.
+                setTimeout(function () { window.location.href = SUCCESS_REDIRECT; }, 1500);
+              } else if (!TERMINAL[data.status]) {
+                setTimeout(poll, 10000);
+              }
             })
             .catch(function () { setTimeout(poll, 10000); });
         }
-        // First poll after a short delay so the user sees the QR first.
         setTimeout(poll, 2000);
       })();
     </script>
@@ -230,11 +287,27 @@ function renderErrorPage(message: string): string {
 </html>`;
 }
 
+function renderInfoPage(title: string, body: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>${escapeHtml(title)}</title>
+    <style>
+      body { font-family: system-ui, sans-serif; max-width: 32rem; margin: 4rem auto; padding: 0 1rem; }
+    </style>
+  </head>
+  <body>
+    <h1>${escapeHtml(title)}</h1>
+    <p>${escapeHtml(body)}</p>
+  </body>
+</html>`;
+}
+
 function formatAmount(amount: number, currency: string): string {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
   } catch {
-    // Currency codes Kinesis supports (KAU, KAG) aren't valid ISO 4217 — fall back.
     return `${amount.toFixed(2)} ${currency}`;
   }
 }

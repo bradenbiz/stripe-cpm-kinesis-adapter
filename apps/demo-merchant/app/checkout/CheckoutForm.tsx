@@ -7,24 +7,27 @@ import { type FormEvent, useMemo, useState } from 'react';
 interface Props {
   clientSecret: string;
   publishableKey: string;
+  paymentIntentId: string;
+  adapterBaseUrl: string;
+  cpmEnabled: boolean;
 }
 
-export default function CheckoutForm({ clientSecret, publishableKey }: Props) {
+export default function CheckoutForm(props: Props) {
   // Memoise the promise so React's strict-mode double render doesn't cause
   // two Stripe instances to load.
   const stripePromise = useMemo<Promise<StripeJs | null>>(
-    () => loadStripe(publishableKey),
-    [publishableKey],
+    () => loadStripe(props.publishableKey),
+    [props.publishableKey],
   );
 
   return (
-    <Elements stripe={stripePromise} options={{ clientSecret }}>
-      <InnerForm />
+    <Elements stripe={stripePromise} options={{ clientSecret: props.clientSecret }}>
+      <InnerForm {...props} />
     </Elements>
   );
 }
 
-function InnerForm() {
+function InnerForm({ paymentIntentId, adapterBaseUrl, cpmEnabled }: Props) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -38,11 +41,22 @@ function InnerForm() {
     setError(null);
 
     const origin = window.location.origin;
+    const merchantSuccessUrl = `${origin}/success`;
+
+    // Strategy: ALWAYS return to the adapter when CPM is enabled.
+    //   - For Card: adapter sees PI status `succeeded` → bounces to merchant /success
+    //   - For CPM:  adapter sees PI requires_action → runs the QR flow, then
+    //     redirects to merchant /success on `processed`
+    // This sidesteps the "we don't know which method was selected at submit
+    // time" problem — one return URL, adapter routes based on PI state.
+    const returnUrl = cpmEnabled
+      ? `${adapterBaseUrl}/pay/${encodeURIComponent(paymentIntentId)}` +
+        `?merchant_return_url=${encodeURIComponent(merchantSuccessUrl)}`
+      : merchantSuccessUrl;
+
     const { error: confirmError } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: `${origin}/success`,
-      },
+      confirmParams: { return_url: returnUrl },
     });
 
     // If we reach this point, confirmation failed. (On success Stripe
