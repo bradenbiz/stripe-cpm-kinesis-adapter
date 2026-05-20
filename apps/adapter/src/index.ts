@@ -1,10 +1,7 @@
 import type { Env } from './env.js';
-// Side-effect import to force the Workers bundler to resolve & bundle the
-// Kinesis Pay SDK. Surfaces any Node-only imports or ESM/CJS issues at
-// build time, before any route depends on the SDK.
-import './lib/kinesis-pay.smoke.js';
 import { text } from './lib/response.js';
 import { handleHealth } from './routes/health.js';
+import { handlePayStatus } from './routes/pay-status.js';
 import { handlePay } from './routes/pay.js';
 import { handleKinesisWebhook } from './routes/webhook-kinesis.js';
 import { handleStripeWebhook } from './routes/webhook-stripe.js';
@@ -26,11 +23,18 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     return handleHealth();
   }
 
-  // GET /pay/:session_id
+  // GET /pay/:payment_intent_id
   const payMatch = pathname.match(/^\/pay\/([^/]+)$/);
   if (payMatch && method === 'GET') {
     // biome-ignore lint/style/noNonNullAssertion: regex group guaranteed by match
-    return handlePay(request, decodeURIComponent(payMatch[1]!));
+    return handlePay(request, decodeURIComponent(payMatch[1]!), env);
+  }
+
+  // GET /pay-status/:kinesis_payment_id
+  const statusMatch = pathname.match(/^\/pay-status\/([^/]+)$/);
+  if (statusMatch && method === 'GET') {
+    // biome-ignore lint/style/noNonNullAssertion: regex group guaranteed by match
+    return handlePayStatus(request, decodeURIComponent(statusMatch[1]!), env);
   }
 
   // POST /webhook/stripe
@@ -38,7 +42,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     return handleStripeWebhook(request, env);
   }
 
-  // POST /webhook/kinesis
+  // POST /webhook/kinesis  (dev-only simulator; real Kinesis has no webhooks)
   if (pathname === '/webhook/kinesis' && method === 'POST') {
     return handleKinesisWebhook(request, env);
   }
