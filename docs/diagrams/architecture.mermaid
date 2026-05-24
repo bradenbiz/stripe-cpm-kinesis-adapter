@@ -1,0 +1,52 @@
+%% Stripe CPM × Kinesis Pay — System architecture (component view)
+%%
+%% Render to PNG/SVG with:
+%%   npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/architecture.mermaid \
+%%       -o docs/diagrams/architecture.png -w 1600
+graph TB
+    subgraph Customer["Customer"]
+        Browser["Browser<br/>(merchant + adapter pages)"]
+        KApp["Kinesis App<br/>(customer wallet)"]
+    end
+
+    subgraph Merchant["Merchant Infrastructure"]
+        NextApp["Next.js Storefront<br/>Stripe Payment Element"]
+        Adapter["CPM Adapter Worker<br/>(Cloudflare Workers)"]
+    end
+
+    subgraph Stripe["Stripe"]
+        StripePI["PaymentIntents API"]
+        StripePR["PaymentRecords API<br/>(off-platform settlement reporting)"]
+        StripeDash["Dashboard<br/>(merchant-facing)"]
+    end
+
+    subgraph KinesisInfra["Kinesis"]
+        KPay["Kinesis Pay<br/>Merchant API<br/>(apip.kinesis.money)"]
+        KMS["KMS Web<br/>(kms.kinesis.money)<br/>QR redirect target"]
+        KLedger["KAU/KAG Settlement Ledger"]
+    end
+
+    Browser -->|HTTPS| NextApp
+    Browser -->|HTTPS| Adapter
+    Browser -->|QR scan| KMS
+    KApp -->|approves payment| KLedger
+
+    NextApp -->|create / retrieve PI| StripePI
+    Adapter -->|retrieve / update PI| StripePI
+    Adapter -->|reportPayment| StripePR
+    Adapter -->|createPayment / getStatus / confirmPayment| KPay
+    KPay -.->|state transitions| KLedger
+    KMS -.->|customer-facing UI| KPay
+
+    StripePI -.->|metadata + linked PaymentRecord| StripeDash
+    StripePR -.->|appears alongside PI| StripeDash
+
+    classDef customer fill:#fef3c7,stroke:#a16207,color:#18181b
+    classDef merchant fill:#dbeafe,stroke:#1e40af,color:#18181b
+    classDef stripe fill:#e9d5ff,stroke:#7c3aed,color:#18181b
+    classDef kinesis fill:#fde68a,stroke:#a16207,color:#18181b
+
+    class Browser,KApp customer
+    class NextApp,Adapter merchant
+    class StripePI,StripePR,StripeDash stripe
+    class KPay,KMS,KLedger kinesis

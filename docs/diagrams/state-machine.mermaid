@@ -1,0 +1,37 @@
+%% Kinesis Pay payment lifecycle — state machine
+%%
+%% Authoritative source: the canonical bullioncapital/kinesis-pay-woocommerce
+%% plugin's STATUS_* constants, plus empirical observation against the live
+%% production API.
+%%
+%% Render to PNG/SVG with:
+%%   npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/state-machine.mermaid \
+%%       -o docs/diagrams/state-machine.png -w 1200
+stateDiagram-v2
+    [*] --> created : kpay.createPayment
+
+    created --> processed : customer approves in Kinesis app<br/>(funds move customer → merchant)
+    created --> rejected  : customer declines in Kinesis app
+    created --> expired   : 10-minute timeout
+
+    processed --> [*]
+    rejected  --> [*]
+    expired   --> [*]
+
+    note right of created
+        QR code displayed.
+        Adapter polls every 10s.
+    end note
+
+    note right of processed
+        Terminal success.
+        Adapter then:
+        - kpay.confirmPayment (attaches Stripe PI id)
+        - stripe.paymentIntents.update (metadata)
+        - stripe.paymentRecords.reportPayment
+    end note
+
+    note right of expired
+        Adapter cancels the
+        Stripe PaymentIntent.
+    end note
