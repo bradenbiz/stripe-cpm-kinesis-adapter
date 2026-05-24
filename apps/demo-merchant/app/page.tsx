@@ -6,8 +6,8 @@ export default function Home() {
     <main className="container">
       <h1>Kinesis × Stripe — Demo Merchant</h1>
       <p className="muted">
-        A test storefront for the Stripe CPM × Kinesis Pay adapter. Card checkout works today; the
-        &quot;Pay with Kinesis&quot; option lands once CPM access is provisioned.
+        A test storefront for the Stripe CPM × Kinesis Pay adapter. Both card checkout and &quot;Pay
+        with Gold&quot; work end-to-end against real Stripe and real Kinesis Pay.
       </p>
 
       <div className="product-grid">
