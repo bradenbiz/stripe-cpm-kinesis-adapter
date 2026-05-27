@@ -1,12 +1,3 @@
-%% Kinesis Pay payment lifecycle — state machine
-%%
-%% Authoritative source: the canonical bullioncapital/kinesis-pay-woocommerce
-%% plugin's STATUS_* constants, plus empirical observation against the live
-%% production API.
-%%
-%% Render to PNG/SVG with:
-%%   npx -p @mermaid-js/mermaid-cli mmdc -i docs/diagrams/state-machine.mermaid \
-%%       -o docs/diagrams/state-machine.png -w 1200
 stateDiagram-v2
     [*] --> created : kpay.createPayment
 
