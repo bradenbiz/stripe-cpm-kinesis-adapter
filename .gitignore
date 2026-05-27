@@ -12,3 +12,8 @@ coverage/
 .dev.vars
 .vscode/
 .idea/
+
+# Rendered diagrams — regenerate from the .mermaid sources via the
+# command in docs/diagrams/README.md. Keeps git history clean.
+docs/diagrams/*.png
+docs/diagrams/*.svg
