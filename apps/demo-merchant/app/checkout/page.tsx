@@ -6,11 +6,11 @@ import CheckoutForm from './CheckoutForm';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: { product?: string };
+  searchParams: Promise<{ product?: string }>;
 }
 
 export default async function CheckoutPage({ searchParams }: PageProps) {
-  const productId = searchParams.product;
+  const productId = (await searchParams).product;
   if (!productId) notFound();
 
   const product = findProduct(productId);
