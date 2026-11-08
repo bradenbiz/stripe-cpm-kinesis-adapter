@@ -4,7 +4,7 @@ import { html } from '../lib/response.js';
 import { makeStripe } from '../lib/stripe.js';
 
 /**
- * GET /pay/:payment_intent_id?merchant_return_url=…
+ * GET /pay/:payment_intent_id
  *
  * Stripe's CheckoutForm sets this URL as the `return_url` on
  * `confirmPayment`. When the customer picks:
@@ -18,14 +18,18 @@ import { makeStripe } from '../lib/stripe.js';
  *             and let the page poll until `processed`. On `processed`,
  *             the page-side JS redirects the customer to the merchant
  *             success URL.
+ *
+ * The success URL comes from `env.MERCHANT_RETURN_URL`, never from the
+ * request: a URL taken from the query string would let anyone craft a link
+ * that sends customers to an arbitrary site (or a `javascript:` URL) after
+ * paying.
  */
 export async function handlePay(
-  request: Request,
+  _request: Request,
   paymentIntentId: string,
   env: Env,
 ): Promise<Response> {
-  const url = new URL(request.url);
-  const merchantReturnUrl = url.searchParams.get('merchant_return_url') ?? '';
+  const merchantReturnUrl = env.MERCHANT_RETURN_URL ?? '';
 
   const stripe = makeStripe(env.STRIPE_SECRET_KEY);
 
@@ -82,7 +86,6 @@ export async function handlePay(
       kinesisPaymentId,
       amount,
       currency,
-      merchantReturnUrl,
     });
     return html(
       renderPayPage({

@@ -70,11 +70,9 @@ function InnerForm({ paymentIntentId, adapterBaseUrl, cpmtId }: Props) {
       // CPM path: Stripe does NOT process this. We must redirect the
       // customer to our adapter ourselves. The PaymentIntent stays in
       // `requires_payment_method` until the adapter reports the off-
-      // Stripe payment via `paymentRecords.reportPayment`.
-      const adapterReturnUrl =
-        `${adapterBaseUrl}/pay/${encodeURIComponent(paymentIntentId)}` +
-        `?merchant_return_url=${encodeURIComponent(merchantSuccessUrl)}`;
-      window.location.href = adapterReturnUrl;
+      // Stripe payment via `paymentRecords.reportPayment`. The adapter
+      // sends the customer back to its configured MERCHANT_RETURN_URL.
+      window.location.href = `${adapterBaseUrl}/pay/${encodeURIComponent(paymentIntentId)}`;
       return;
     }
 

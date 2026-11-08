@@ -20,5 +20,11 @@ export interface Env {
    * KINESIS_CPMT_ID — same Stripe account, same cpmt.
    */
   KINESIS_CPMT_ID: string;
+  /**
+   * Where customers land after paying (the merchant's success page). Set in
+   * config, not taken from the request, so links can't redirect elsewhere.
+   * Empty disables the redirect.
+   */
+  MERCHANT_RETURN_URL?: string;
   // DB: D1Database; // uncomment once D1 binding is provisioned
 }

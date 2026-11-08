@@ -48,6 +48,8 @@ Pick a product, hit "Buy", and pay with Stripe's test card
 cp apps/adapter/.dev.vars.example apps/adapter/.dev.vars
 # Edit .dev.vars with Stripe test-mode keys and Kinesis Pay merchant API credentials.
 # KINESIS_CPMT_ID must match the demo merchant's CPM type id.
+# MERCHANT_RETURN_URL (default http://localhost:3000/success) is where
+# customers land after paying; it is config, never a URL parameter.
 
 npm run dev:adapter
 # -> http://localhost:8787
