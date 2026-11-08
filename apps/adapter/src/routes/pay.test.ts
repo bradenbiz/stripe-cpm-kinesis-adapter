@@ -66,3 +66,14 @@ describe('GET /pay return URL', () => {
     expect(body).not.toContain('javascript:');
   });
 });
+
+describe('GET /pay QR page', () => {
+  it('draws the QR as inline SVG and loads no third-party script', async () => {
+    stubApis('requires_payment_method');
+    const res = await handleRequest(new Request('https://x/pay/pi_1'), env);
+    const body = await res.text();
+    expect(res.status).toBe(200);
+    expect(body).toMatch(/<div id="qrcode"[^>]*><svg [^>]*>/);
+    expect(body).not.toMatch(/<script[^>]+src=/);
+  });
+});
