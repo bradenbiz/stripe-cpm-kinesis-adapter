@@ -20,6 +20,7 @@ sequenceDiagram
     Stripe-->>Adapter: { amount, currency, status }
     Adapter->>Kinesis: createPayment({ amount, currency })
     Kinesis-->>Adapter: { paymentId, expiryAt, ... }
+    Adapter->>Stripe: paymentIntents.update<br/>(bind metadata.kinesis_payment_id = kpId)
     Adapter->>Customer: Render QR encoding<br/>kms.kinesis.money?paymentId=…
 
     Customer->>KMS: Scans QR with phone
@@ -29,14 +30,15 @@ sequenceDiagram
     Note over Kinesis: Funds move customer → merchant<br/>Status: created → processed
 
     loop Every 10s while on QR page
-        Customer->>Adapter: GET /pay-status/:kpId?pi=…
+        Customer->>Adapter: GET /pay-status/:pi_id
+        Adapter->>Stripe: paymentIntents.retrieve<br/>(metadata.kinesis_payment_id = kpId)
         Adapter->>Kinesis: getPaymentStatus(kpId)
         Kinesis-->>Adapter: { status: 'created' | 'processed' | ... }
     end
 
     Note over Adapter: Closeout on processed (idempotent)
     Adapter->>Kinesis: confirmPayment({ paymentId, orderId: pi_id })
-    Adapter->>Stripe: paymentIntents.update<br/>(metadata.kinesis_payment_id = ...)
+    Adapter->>Stripe: paymentIntents.update<br/>(metadata.kinesis_status = processed)
     Adapter->>Stripe: paymentRecords.reportPayment<br/>(processor_details.custom.payment_reference = kpId)
 
     Adapter->>Customer: Redirect to merchant /success?payment_intent=…

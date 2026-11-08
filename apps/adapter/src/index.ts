@@ -30,7 +30,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
     return handlePay(request, decodeURIComponent(payMatch[1]!), env);
   }
 
-  // GET /pay-status/:kinesis_payment_id
+  // GET /pay-status/:payment_intent_id
   const statusMatch = pathname.match(/^\/pay-status\/([^/]+)$/);
   if (statusMatch && method === 'GET') {
     // biome-ignore lint/style/noNonNullAssertion: regex group guaranteed by match

@@ -58,7 +58,7 @@ npm run dev:adapter
 
 For the CPM path, run both dev servers. The merchant redirects to
 `/pay/:payment_intent_id` on the adapter, the adapter displays the Kinesis Pay
-QR approval page, and `/pay-status/:kinesis_payment_id` performs the terminal
+QR approval page, and `/pay-status/:payment_intent_id` performs the terminal
 closeout when Kinesis reports `processed`, `rejected`, or `expired`.
 
 ## Checks

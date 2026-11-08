@@ -75,14 +75,41 @@ export async function handlePay(
   }
 
   const kpay = makeKinesisPay(env);
+  const kinesisRequest = kinesisRequestFor(intent);
   try {
-    const payment = await kpay.createPayment({ amount, currency });
-    const kinesisPaymentId = payment.globalPaymentId ?? payment.paymentId;
+    // Reuse this order's open Kinesis payment (page refresh, second tab) so
+    // a customer who pays an earlier QR is still credited.
+    let kinesisPaymentId: string | undefined =
+      intent.metadata?.kinesis_request === kinesisRequest
+        ? intent.metadata?.kinesis_payment_id
+        : undefined;
+    if (kinesisPaymentId) {
+      const existing = await kpay.getPaymentStatus(kinesisPaymentId);
+      if (existing.status === 'rejected' || existing.status === 'expired')
+        kinesisPaymentId = undefined;
+    }
     if (!kinesisPaymentId) {
-      throw new Error('Kinesis did not return a paymentId');
+      const payment = await kpay.createPayment({ amount, currency });
+      kinesisPaymentId = payment.globalPaymentId ?? payment.paymentId;
+      if (!kinesisPaymentId) {
+        throw new Error('Kinesis did not return a paymentId');
+      }
+      // Bind the Kinesis payment to this order. /pay-status reads the id
+      // from here, never from the request. Stripe merges metadata, so clear
+      // any earlier payment's settlement ('' deletes a key).
+      await stripe.paymentIntents.update(paymentIntentId, {
+        metadata: {
+          kinesis_payment_id: kinesisPaymentId,
+          kinesis_request: kinesisRequest,
+          kinesis_status: '',
+          kinesis_currency: '',
+          kinesis_amount: '',
+          kinesis_closed_at: '',
+        },
+      });
     }
     const redirectUrl = kpay.getRedirectUrl(kinesisPaymentId);
-    console.log('[pay] created KP payment', {
+    console.log('[pay] showing KP payment', {
       paymentIntentId,
       kinesisPaymentId,
       amount,
@@ -105,6 +132,15 @@ export async function handlePay(
       status: 502,
     });
   }
+}
+
+/**
+ * What a Kinesis payment was created for: the PI's amount (minor units) and
+ * currency. Stored on the PI at /pay and checked at closeout, so a payment
+ * made for an older, smaller amount can't settle an updated order.
+ */
+export function kinesisRequestFor(intent: { amount: number; currency: string }): string {
+  return `${intent.amount} ${intent.currency}`;
 }
 
 function appendPiToUrl(baseUrl: string, paymentIntentId: string): string {
@@ -226,7 +262,6 @@ function renderPayPage(args: RenderArgs): string {
 
     <script>
       (function () {
-        var KP_ID = ${JSON.stringify(kinesisPaymentId)};
         var PI_ID = ${JSON.stringify(paymentIntentId)};
         var SUCCESS_REDIRECT = ${JSON.stringify(successRedirect)};
 
@@ -246,9 +281,7 @@ function renderPayPage(args: RenderArgs): string {
         }
 
         function poll() {
-          // ?pi=… tells the status endpoint which Stripe PaymentIntent to
-          // close out when the Kinesis payment reaches a terminal state.
-          fetch('/pay-status/' + encodeURIComponent(KP_ID) + '?pi=' + encodeURIComponent(PI_ID))
+          fetch('/pay-status/' + encodeURIComponent(PI_ID))
             .then(function (r) { return r.json(); })
             .then(function (data) {
               if (data.status) setStatus(data.status);
