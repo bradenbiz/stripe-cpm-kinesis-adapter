@@ -4,13 +4,14 @@ import type { Env } from '../env.js';
 import { makeKinesisPay } from '../lib/kinesis-pay.js';
 import { json } from '../lib/response.js';
 import { makeStripe } from '../lib/stripe.js';
+import { kinesisRequestFor } from './pay.js';
 
 /**
- * GET /pay-status/:kinesis_payment_id?pi=<stripe_payment_intent_id>
+ * GET /pay-status/:payment_intent_id
  *
- * Polled by the /pay page every 10s. Returns the current Kinesis Pay
- * payment status, and — when the status reaches a terminal state and a
- * Stripe PI was provided — performs the cross-system closeout:
+ * Polled by the /pay page every 10s. Returns the status of the Kinesis Pay
+ * payment bound to this PaymentIntent, and — when it reaches a terminal
+ * state — performs the cross-system closeout:
  *
  *   processed:
  *     - kpay.confirmPayment(stripePiId): attach the Stripe PaymentIntent
@@ -25,14 +26,28 @@ import { makeStripe } from '../lib/stripe.js';
  *
  * Idempotent: subsequent polls see `kinesis_closed_at` already set in PI
  * metadata and skip the closeout calls.
+ *
+ * The Kinesis payment id is read from the PI's metadata, which only /pay
+ * writes, never from the request. Taking both ids from the caller let
+ * anyone pair any processed Kinesis payment (even a $0.50 one) with any
+ * order and get it marked paid.
  */
 export async function handlePayStatus(
-  request: Request,
-  kinesisPaymentId: string,
+  _request: Request,
+  piId: string,
   env: Env,
 ): Promise<Response> {
-  const url = new URL(request.url);
-  const piId = url.searchParams.get('pi');
+  const stripe = makeStripe(env.STRIPE_SECRET_KEY);
+  let intent: Stripe.PaymentIntent;
+  try {
+    intent = await stripe.paymentIntents.retrieve(piId);
+  } catch {
+    return json({ error: 'unknown PaymentIntent' }, { status: 404 });
+  }
+  const kinesisPaymentId = intent.metadata?.kinesis_payment_id;
+  if (!kinesisPaymentId) {
+    return json({ error: 'no Kinesis payment for this PaymentIntent' }, { status: 404 });
+  }
 
   const kpay = makeKinesisPay(env);
   let payment: Payment;
@@ -42,13 +57,26 @@ export async function handlePayStatus(
     return errorResponse(err, kinesisPaymentId);
   }
 
+  // The Kinesis payment was created for the amount recorded at /pay. If
+  // the order's amount changed since, it no longer pays for this order.
+  if (
+    payment.status === 'processed' &&
+    intent.metadata?.kinesis_request !== kinesisRequestFor(intent)
+  ) {
+    console.error('[pay-status] PaymentIntent amount changed after Kinesis payment was created', {
+      kinesisPaymentId,
+      piId,
+    });
+    return json({ error: 'order amount changed after payment was created' }, { status: 409 });
+  }
+
   // Cross-system closeout for terminal states. Best-effort — errors are
   // logged but don't fail the poll response.
-  if (piId && payment.status === 'processed') {
+  if (payment.status === 'processed') {
     await closeoutProcessed(env, kinesisPaymentId, piId, payment).catch((err) => {
       console.error('[pay-status] closeout failed', { kinesisPaymentId, piId, err });
     });
-  } else if (piId && (payment.status === 'rejected' || payment.status === 'expired')) {
+  } else if (payment.status === 'rejected' || payment.status === 'expired') {
     await closeoutCanceled(env, piId, payment.status).catch((err) => {
       console.error('[pay-status] cancel failed', { piId, err });
     });
