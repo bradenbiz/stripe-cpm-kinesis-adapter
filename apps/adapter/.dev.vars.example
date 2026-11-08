@@ -26,3 +26,8 @@ KINESIS_MERCHANT_ID=replace_me
 # demo merchant's KINESIS_CPMT_ID (same Stripe account, same cpmt).
 # Used by the adapter when reporting captured payments back to Stripe.
 KINESIS_CPMT_ID=cpmt_replace_me
+
+# Merchant success page customers return to after paying. Defaults to
+# http://localhost:3000/success (wrangler.toml [vars]); override here when the
+# demo merchant runs elsewhere.
+# MERCHANT_RETURN_URL=http://localhost:3000/success

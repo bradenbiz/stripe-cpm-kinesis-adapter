@@ -14,7 +14,7 @@ sequenceDiagram
 
     Customer->>Merchant: Selects "Pay with Gold", clicks Pay
     Note over Merchant: CPM detected client-side → skip Stripe confirmPayment
-    Merchant->>Adapter: Redirect to /pay/:pi_id<br/>?merchant_return_url=…
+    Merchant->>Adapter: Redirect to /pay/:pi_id
 
     Adapter->>Stripe: paymentIntents.retrieve(pi_id)
     Stripe-->>Adapter: { amount, currency, status }
