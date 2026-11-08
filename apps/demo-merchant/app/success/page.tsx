@@ -4,11 +4,11 @@ import { getStripe } from '../../lib/stripe';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams: { payment_intent?: string; payment_intent_client_secret?: string };
+  searchParams: Promise<{ payment_intent?: string; payment_intent_client_secret?: string }>;
 }
 
 export default async function SuccessPage({ searchParams }: PageProps) {
-  const intentId = searchParams.payment_intent;
+  const intentId = (await searchParams).payment_intent;
 
   let intent: Awaited<
     ReturnType<ReturnType<typeof getStripe>['paymentIntents']['retrieve']>
