@@ -1,3 +1,4 @@
+import qrcode from 'qrcode-generator';
 import type { Env } from '../env.js';
 import { makeKinesisPay } from '../lib/kinesis-pay.js';
 import { html } from '../lib/response.js';
@@ -185,6 +186,7 @@ function renderPayPage(args: RenderArgs): string {
         margin: 1rem auto;
         width: fit-content;
       }
+      #qrcode svg { display: block; width: 200px; height: 200px; }
       .status {
         padding: 0.75rem 1rem;
         border-radius: 0.5rem;
@@ -207,7 +209,7 @@ function renderPayPage(args: RenderArgs): string {
         <div class="amount">${formatAmount(amount, currency)}</div>
         <p class="muted">Scan this QR code with your Kinesis app to approve the payment.</p>
 
-        <div id="qrcode" aria-label="Kinesis Pay QR code"></div>
+        <div id="qrcode" role="img" aria-label="Kinesis Pay QR code">${renderQrSvg(redirectUrl)}</div>
 
         <div id="status" class="status status-created">⏳ Waiting for you to scan and approve…</div>
 
@@ -222,20 +224,11 @@ function renderPayPage(args: RenderArgs): string {
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script>
       (function () {
-        var REDIRECT_URL = ${JSON.stringify(redirectUrl)};
         var KP_ID = ${JSON.stringify(kinesisPaymentId)};
         var PI_ID = ${JSON.stringify(paymentIntentId)};
         var SUCCESS_REDIRECT = ${JSON.stringify(successRedirect)};
-
-        new QRCode(document.getElementById('qrcode'), {
-          text: REDIRECT_URL,
-          width: 200,
-          height: 200,
-          correctLevel: QRCode.CorrectLevel.L,
-        });
 
         var statusEl = document.getElementById('status');
         var statusMessages = {
@@ -273,6 +266,18 @@ function renderPayPage(args: RenderArgs): string {
     </script>
   </body>
 </html>`;
+}
+
+/**
+ * Render the payment QR code as inline SVG on the server. The QR decides
+ * where the customer's approval goes, so it is drawn here from the URL
+ * Kinesis gave us instead of by a third-party script in the browser.
+ */
+function renderQrSvg(text: string): string {
+  const qr = qrcode(0, 'L');
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
 }
 
 function renderErrorPage(message: string): string {
