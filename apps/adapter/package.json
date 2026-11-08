@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "kinesis-exchange-sdk": "git+https://github.com/bradenbiz/kinesis-typescript-sdk.git#v0.1.0",
+    "qrcode-generator": "2.0.4",
     "stripe": "^22.0.0"
   },
   "devDependencies": {
