@@ -3,6 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+[vars]
+# Merchant success page customers are sent to after paying. Override in
+# .dev.vars (local) or here (deploy). Never read from the request.
+MERCHANT_RETURN_URL = "http://localhost:3000/success"
+
 # Secrets (set via `wrangler secret put <NAME>`):
 #   STRIPE_SECRET_KEY
 #   STRIPE_WEBHOOK_SECRET
